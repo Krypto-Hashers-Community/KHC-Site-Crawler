@@ -1,0 +1,145 @@
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container {
+    max-width: 800px;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.card-title {
+    color: #333;
+    font-weight: 600;
+}
+
+.terminal-output {
+    background-color: #1e1e1e;
+    color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: 'Courier New', Courier, monospace;
+    height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.found-keywords-output {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+}
+
+.alert {
+    border-radius: 5px;
+}
+
+.alert-info {
+    background-color: #e3f2fd;
+    border-color: #90caf9;
+    color: #0d47a1;
+}
+
+.form-control {
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+}
+
+.form-control:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.25);
+}
+
+.btn {
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #4a90e2;
+    border-color: #4a90e2;
+}
+
+.btn-primary:hover {
+    background-color: #357abd;
+    border-color: #357abd;
+}
+
+.btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+#scanInfo {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-bottom: 20px;
+}
+
+.terminal-line {
+    margin-bottom: 5px;
+    white-space: pre-wrap;
+}
+
+.found-keyword {
+    padding: 8px;
+    margin-bottom: 5px;
+    background-color: #e8f5e9;
+    border-radius: 4px;
+    border-left: 4px solid #4caf50;
+}
+
+.status-container {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.status-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    font-weight: 500;
+    min-width: 100px;
+}
+
+.status-processing {
+    background-color: #ffd700;
+    color: #000;
+}
+
+.status-error {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.status-complete {
+    background-color: #198754;
+    color: #fff;
+}
+
+.new-scan-button {
+    background-color: #6c757d;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.new-scan-button:hover {
+    background-color: #5a6268;
+} 
