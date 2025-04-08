@@ -48,14 +48,19 @@ function startScan() {
     if (maxDepth === '0') {
         depthText = 'Fast Scan (initial page only)';
     } else if (maxDepth === '-1') {
-        depthText = 'TURBO MODE - Maximum Speed';
+        depthText = '⚡ TURBO MODE - Scanning EVERYTHING';
     }
+    
+    // Determine if proxies are used (not used in Fast Scan or Turbo mode)
+    const proxiesUsed = useProxies && maxDepth > 0;
+    const proxiesDisabledMessage = maxDepth === '0' ? '(disabled in Fast Scan mode)' : 
+                                  maxDepth === '-1' ? '(disabled in Turbo mode)' : '';
     
     document.getElementById('scanInfo').innerHTML = `
         <strong>Website:</strong> ${currentUrl}<br>
         <strong>Keywords:</strong> ${currentKeywords}<br>
         <strong>Crawl Depth:</strong> ${depthText}<br>
-        <strong>Using Proxies:</strong> ${useProxies && maxDepth !== '-1' ? 'Yes' : 'No'} ${maxDepth === '-1' ? '(disabled in Turbo mode)' : ''}
+        <strong>Using Proxies:</strong> ${proxiesUsed ? 'Yes' : 'No'} ${proxiesDisabledMessage}
     `;
     
     // Clear previous results
@@ -273,6 +278,35 @@ function downloadResults() {
     window.location.href = '/download_results';
 }
 
+// Add a function to show a notice about TURBO mode
+function showTurboModeNotice() {
+    // Create a notice element
+    const notice = document.createElement('div');
+    notice.className = 'turbo-notice';
+    notice.innerHTML = `
+        <div style="background-color: rgba(255, 51, 102, 0.1); border: 2px solid #ff3366; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+            <h5 style="color: #ff3366; margin-top: 0;"><span style="font-size: 1.2em;">⚡</span> Want to scan ALL pages?</h5>
+            <p>You're currently using "<span id="currentMode"></span>" mode.</p>
+            <p>To scan all pages and sub-pages without limits, select <strong style="color: #ff3366;">⚡ TURBO</strong> mode in the dropdown.</p>
+            <button class="btn btn-sm" style="background-color: #ff3366; color: white; margin-top: 5px;" onclick="document.getElementById('turboNotice').style.display='none';">Got it!</button>
+        </div>
+    `;
+    
+    // Add the notice to the page
+    const container = document.getElementById('keywordsPage').querySelector('.card-body');
+    const existingNotice = document.getElementById('turboNotice');
+    
+    if (!existingNotice) {
+        notice.id = 'turboNotice';
+        container.insertBefore(notice, container.firstChild);
+    }
+    
+    // Update the current mode text
+    const modeSelect = document.getElementById('maxDepth');
+    const selectedOption = modeSelect.options[modeSelect.selectedIndex].text;
+    document.getElementById('currentMode').textContent = selectedOption;
+}
+
 // Add event listeners when the document is ready
 document.addEventListener('DOMContentLoaded', function() {
     // Add click handler for start scan button
@@ -303,4 +337,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Fix the openAllUrlsBtn event handling
     document.getElementById('openAllUrlsBtn').addEventListener('click', openAllFoundUrls);
+    
+    // Add change handler for the maxDepth select to manage proxy checkbox
+    document.getElementById('maxDepth').addEventListener('change', function() {
+        const maxDepth = this.value;
+        const proxiesCheckbox = document.getElementById('useProxies');
+        const proxiesLabel = proxiesCheckbox.nextElementSibling;
+        const proxiesHint = proxiesLabel.nextElementSibling;
+        
+        // Disable proxies for Fast Scan and Turbo mode
+        if (maxDepth === '0' || maxDepth === '-1') {
+            proxiesCheckbox.disabled = true;
+            proxiesLabel.style.opacity = '0.5';
+            proxiesHint.style.opacity = '0.5';
+            
+            // Show specific message based on mode
+            if (maxDepth === '0') {
+                proxiesHint.textContent = 'Proxies disabled in Fast Scan mode (single page scan).';
+            } else {
+                proxiesHint.textContent = 'Proxies disabled in Turbo mode for maximum speed.';
+            }
+        } else {
+            proxiesCheckbox.disabled = false;
+            proxiesLabel.style.opacity = '1';
+            proxiesHint.style.opacity = '1';
+            proxiesHint.textContent = 'Slower but may work on sites that block crawlers.';
+        }
+        
+        // Update the notice
+        const currentOption = this.options[this.selectedIndex].text;
+        if (document.getElementById('currentMode')) {
+            document.getElementById('currentMode').textContent = currentOption;
+        }
+    });
+    
+    // Initialize proxy state based on current depth selection
+    document.getElementById('maxDepth').dispatchEvent(new Event('change'));
+    
+    // Show Turbo mode notice when the keywords page is shown
+    // Wait until elements are available
+    setTimeout(function() {
+        const urlInput = document.getElementById('url');
+        if (urlInput) {
+            urlInput.addEventListener('blur', function() {
+                if (this.value.trim()) {
+                    showTurboModeNotice();
+                }
+            });
+        }
+    }, 1000);
 }); 
