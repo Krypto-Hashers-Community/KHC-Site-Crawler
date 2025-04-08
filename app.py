@@ -53,6 +53,9 @@ class OutputCapture:
         self.buffer.write(text)
         self.old_stdout.write(text)
         
+        # Always queue the raw text for immediate output
+        output_queue.put(text)
+        
         # Add to line buffer and check for full lines
         self.line_buffer += text
         lines_to_process = []
@@ -64,9 +67,6 @@ class OutputCapture:
             self.line_buffer = parts[-1]
             # All other parts are complete lines
             lines_to_process = [part for part in parts[:-1] if part.strip()]
-        
-        # Queue text for immediate output
-        output_queue.put(text)
         
         # Process complete lines for scan_results and found_keywords
         for line in lines_to_process:
@@ -147,24 +147,30 @@ def get_scan_results():
     
     # Mark scan as complete if we see the completion message or error messages about site access
     if any("[✅] Scan completed!" in line for line in scan_results) or \
+       any("[⚡] Turbo crawl finished!" in line for line in scan_results) or \
        any("[⚠️] The website might be blocking crawlers" in line for line in scan_results):
         is_scanning = False
     
-    # Get any new output from the queue (limited to prevent overwhelming the client)
+    # Get any new output from the queue (increased limit for Turbo mode)
     new_output = []
-    max_queue_items = 50  # Limit items to process at once
+    max_queue_items = 200  # Increased from 50 to handle more output
     count = 0
     
     while not output_queue.empty() and count < max_queue_items:
         try:
-            new_output.append(output_queue.get_nowait())
+            item = output_queue.get_nowait()
+            new_output.append(item)
             count += 1
         except queue.Empty:
             break
     
+    # Update found_keywords by scanning scan_results again
+    # This ensures we don't miss any findings, especially in Turbo mode
+    updated_found_keywords = [line for line in scan_results if '✅ Found' in line]
+    
     return jsonify({
         'scan_results': scan_results,
-        'found_keywords': found_keywords,
+        'found_keywords': updated_found_keywords,
         'is_scanning': is_scanning,
         'new_output': new_output,
         'queue_size': output_queue.qsize()  # Send queue size for debugging

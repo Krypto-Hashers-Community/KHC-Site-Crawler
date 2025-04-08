@@ -151,10 +151,13 @@ function pollResults() {
             const terminalOutput = document.getElementById('terminalOutput');
             
             // Clear and rebuild if there's a significant change
-            if (Math.abs(data.scan_results.length - terminalOutput.childElementCount) > 10) {
+            if (Math.abs(data.scan_results.length - terminalOutput.childElementCount) > 20) {
                 terminalOutput.innerHTML = data.scan_results
                     .map(line => formatTerminalLine(line))
                     .join('');
+                
+                // Always scroll to bottom on big updates
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
             }
             // Otherwise just append new output
             else if (data.new_output && data.new_output.length > 0) {
@@ -171,7 +174,7 @@ function pollResults() {
                 // Append the new content
                 if (newContent) {
                     // Preserve scroll position
-                    const wasAtBottom = terminalOutput.scrollTop + terminalOutput.clientHeight >= terminalOutput.scrollHeight - 10;
+                    const wasAtBottom = terminalOutput.scrollTop + terminalOutput.clientHeight >= terminalOutput.scrollHeight - 30;
                     
                     // Append content
                     terminalOutput.innerHTML += newContent;
@@ -184,57 +187,17 @@ function pollResults() {
             }
 
             // Update found keywords
-            const foundKeywords = document.getElementById('foundKeywords');
-            
             if (data.found_keywords && data.found_keywords.length > 0) {
-                // Extract URLs and update foundUrls array
-                foundUrls = [];
-                
-                let keywordHtml = '<div class="found-keywords-note">Double-click on any result to open the link in a new tab</div>';
-                
-                keywordHtml += data.found_keywords.map(line => {
-                    // Extract URL and keyword
-                    const match = line.match(/✅ Found '(.+?)' at: (.+)/);
-                    if (match) {
-                        const keyword = match[1];
-                        const url = match[2];
-                        
-                        // Add to foundUrls array
-                        if (!foundUrls.includes(url)) {
-                            foundUrls.push(url);
-                        }
-                        
-                        // Return formatted HTML with clickable link
-                        return `<div class="found-keyword" ondblclick="window.open('${url}', '_blank')" title="Double-click to open">
-                            Found <span class="found-keyword-term">${keyword}</span> at: 
-                            <span class="found-keyword-url">${url}</span>
-                        </div>`;
-                    }
-                    return `<div class="found-keyword">${line}</div>`;
-                }).join('');
-                
-                foundKeywords.innerHTML = keywordHtml;
-                
-                // Update the keywords counter with the unique URLs count
-                const keywordsCounter = document.getElementById('keywordsCounter');
-                keywordsCounter.textContent = foundUrls.length.toString();
-                // Add pulse animation when the count changes
-                keywordsCounter.style.animation = 'none';
-                setTimeout(() => {
-                    keywordsCounter.style.animation = 'pulse 1s ease-in-out';
-                }, 10);
-                
-                // Show the open all URLs button if we have URLs
-                if (foundUrls.length > 0) {
-                    document.getElementById('openAllUrlsBtn').style.display = 'block';
-                }
+                updateFoundKeywords(data.found_keywords);
             }
 
             // Update status button
             const statusButton = document.getElementById('statusButton');
             
             // Check for completion or errors
-            if (!data.is_scanning || data.scan_results.some(line => line.includes("[✅] Scan completed!"))) {
+            if (!data.is_scanning || 
+                data.scan_results.some(line => line.includes("[✅] Scan completed!")) ||
+                data.scan_results.some(line => line.includes("[⚡] Turbo crawl finished!"))) {
                 if (data.scan_results.some(line => line.includes("Error"))) {
                     statusButton.className = 'status-button status-error';
                     statusButton.textContent = 'Error';
@@ -246,8 +209,10 @@ function pollResults() {
             } else {
                 statusButton.className = 'status-button status-processing';
                 statusButton.textContent = 'Processing';
-                // Continue polling only if still scanning
-                setTimeout(pollResults, 500); // Poll more frequently (500ms)
+                
+                // Continue polling - use faster rate for Turbo mode
+                const isTurboMode = data.scan_results.some(line => line.includes("TURBO MODE"));
+                setTimeout(pollResults, isTurboMode ? 200 : 500); // Poll more frequently in Turbo mode
             }
         })
         .catch(error => {
@@ -257,6 +222,51 @@ function pollResults() {
             statusButton.textContent = 'Error';
             isScanning = false;
         });
+}
+
+// New function to update found keywords display
+function updateFoundKeywords(foundKeywordData) {
+    const foundKeywords = document.getElementById('foundKeywords');
+    foundUrls = [];
+    
+    let keywordHtml = '<div class="found-keywords-note">Double-click on any result to open the link in a new tab</div>';
+    
+    keywordHtml += foundKeywordData.map(line => {
+        // Extract URL and keyword
+        const match = line.match(/✅ Found '(.+?)' at: (.+)/);
+        if (match) {
+            const keyword = match[1];
+            const url = match[2];
+            
+            // Add to foundUrls array
+            if (!foundUrls.includes(url)) {
+                foundUrls.push(url);
+            }
+            
+            // Return formatted HTML with clickable link
+            return `<div class="found-keyword" ondblclick="window.open('${url}', '_blank')" title="Double-click to open">
+                Found <span class="found-keyword-term">${keyword}</span> at: 
+                <span class="found-keyword-url">${url}</span>
+            </div>`;
+        }
+        return `<div class="found-keyword">${line}</div>`;
+    }).join('');
+    
+    foundKeywords.innerHTML = keywordHtml;
+    
+    // Update the keywords counter with the unique URLs count
+    const keywordsCounter = document.getElementById('keywordsCounter');
+    keywordsCounter.textContent = foundUrls.length.toString();
+    // Add pulse animation when the count changes
+    keywordsCounter.style.animation = 'none';
+    setTimeout(() => {
+        keywordsCounter.style.animation = 'pulse 1s ease-in-out';
+    }, 10);
+    
+    // Show the open all URLs button if we have URLs
+    if (foundUrls.length > 0) {
+        document.getElementById('openAllUrlsBtn').style.display = 'block';
+    }
 }
 
 function openAllFoundUrls() {
