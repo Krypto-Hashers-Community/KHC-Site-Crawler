@@ -1,6 +1,7 @@
 body {
-    background-color: #f8f9fa;
+    background-color: #121212;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    color: #e0e0e0;
 }
 
 .container {
@@ -9,19 +10,21 @@ body {
 
 .card {
     border: none;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
     border-radius: 10px;
     margin-bottom: 20px;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
 }
 
 .card-title {
-    color: #333;
+    color: #4a90e2;
     font-weight: 600;
 }
 
 .terminal-output {
-    background-color: #1e1e1e;
-    color: #fff;
+    background-color: #0a0a0a;
+    color: #e0e0e0;
     padding: 15px;
     border-radius: 5px;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
@@ -36,36 +39,65 @@ body {
 }
 
 .found-keywords-output {
-    background-color: #f8f9fa;
+    background-color: #1a1a1a;
     padding: 15px;
     border-radius: 5px;
     height: 300px;
     overflow-y: auto;
-    border: 1px solid #ddd;
+    border: 1px solid #333;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    color: #e0e0e0;
 }
 
 .alert {
     border-radius: 5px;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    background-color: #2d3748;
+    color: #e0e0e0;
+    border-color: #4a5568;
 }
 
 .alert-info {
-    background-color: #e3f2fd;
-    border-color: #90caf9;
-    color: #0d47a1;
+    background-color: #2c3e50;
+    border-color: #3498db;
+    color: #e0e0e0;
 }
 
 .form-control {
     border-radius: 5px;
-    border: 1px solid #ddd;
+    border: 1px solid #333;
     padding: 10px 15px;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    background-color: #2a2a2a;
+    color: #e0e0e0;
 }
 
 .form-control:focus {
     border-color: #4a90e2;
     box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.25);
+    background-color: #333;
+    color: #fff;
+}
+
+.form-select {
+    background-color: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #333;
+}
+
+.form-select:focus {
+    background-color: #333;
+    color: #fff;
+    border-color: #4a90e2;
+}
+
+.form-check-input {
+    background-color: #2a2a2a;
+    border-color: #666;
+}
+
+.text-muted {
+    color: #aaa !important;
 }
 
 .btn {
@@ -91,10 +123,10 @@ body {
 }
 
 #scanInfo {
-    background-color: #f8f9fa;
+    background-color: #2a2a2a;
     padding: 10px 15px;
     border-radius: 5px;
-    border: 1px solid #ddd;
+    border: 1px solid #333;
     margin-bottom: 15px;
     font-size: 0.9rem;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
@@ -188,7 +220,7 @@ body {
 }
 
 .new-scan-button {
-    background-color: #6c757d;
+    background-color: #495057;
     color: #fff;
     border: none;
     padding: 8px 16px;
@@ -202,12 +234,12 @@ body {
 }
 
 .found-keywords-note {
-    background-color: #f0f8ff;
+    background-color: #2d3748;
     border-left: 4px solid #4a90e2;
     padding: 8px 10px;
     margin-bottom: 15px;
     font-size: 0.9rem;
-    color: #0d47a1;
+    color: #e0e0e0;
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -222,7 +254,7 @@ body {
 .found-keyword {
     padding: 10px;
     margin-bottom: 8px;
-    background-color: #e8f5e9;
+    background-color: #2d3748;
     border-radius: 6px;
     border-left: 4px solid #4caf50;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
@@ -234,7 +266,7 @@ body {
 }
 
 .found-keyword:hover {
-    background-color: #c8e6c9;
+    background-color: #3a4a5e;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
@@ -246,24 +278,26 @@ body {
 }
 
 .found-keyword-url {
-    color: #1976d2;
+    color: #4a90e2;
     font-weight: 600;
     text-decoration: none;
     word-break: break-all;
     font-size: 0.9rem;
-    border-bottom: 1px dashed #1976d2;
+    border-bottom: 1px dashed #4a90e2;
 }
 
 .found-keyword-term {
     font-weight: 700;
-    background-color: #ffeb3b;
+    background-color: #ffd700;
     padding: 2px 5px;
     border-radius: 3px;
     font-size: 0.9rem;
+    color: #000;
 }
 
 h1, h2, h3, h4, h5, h6, .display-4, .lead {
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    color: #e0e0e0;
 }
 
 /* Make cards equal height */
