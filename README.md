@@ -74,8 +74,8 @@ cd KHC-Site-Crawler
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the application
-python app.py
+# Run the application using the start script
+./start.sh
 ```
 
 ### Docker Installation
@@ -84,7 +84,7 @@ python app.py
 # Build the Docker image
 docker build -t khc-site-crawler .
 
-# Run the container
+# Run the container (which will use start.sh internally)
 docker run -p 5000:5000 khc-site-crawler
 ```
 
@@ -95,7 +95,8 @@ docker run -p 5000:5000 khc-site-crawler
 ### Starting a Scan
 
 1. **Access the Web Interface**:
-   - Open your browser and navigate to `http://localhost:5000`
+   - Run the application with `./start.sh`
+   - Open your browser and navigate to the URL shown in the terminal (typically `http://localhost:5000` or similar)
    - You'll be greeted with the KHC Site Crawler welcome screen
 
 2. **Enter URL**:
@@ -175,6 +176,17 @@ MAX_DEPTH = 3    # Default maximum crawl depth
 MAX_WORKERS = 3  # Number of concurrent threads
 TIMEOUT = 15     # Request timeout in seconds
 ```
+
+### Startup Script
+
+The application uses a startup script (`start.sh`) that handles:
+
+- Finding an available port automatically
+- Killing any conflicting processes if needed
+- Starting the Flask application with the correct configuration
+- Providing a direct URL to access the web interface
+
+You can modify `start.sh` if you need to customize the startup process further.
 
 ---
 
