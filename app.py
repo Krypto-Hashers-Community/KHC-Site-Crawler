@@ -1,17 +1,19 @@
-from flask import Flask, render_template, request, jsonify, send_file
 import os
-from crawler import main as run_crawler
-import threading
-import io
-import sys
-from io import StringIO
 import socket
 import subprocess
+import sys
+import threading
 import queue
+from queue import Queue
+import io
+from flask import Flask, render_template, request, jsonify, send_file
+
+# Import the crawler module
+import crawler
 
 app = Flask(__name__)
 
-# Global variables to store scan results
+# Global variables for scan state
 scan_results = []
 found_keywords = []
 is_scanning = False
@@ -42,15 +44,32 @@ def kill_process_on_port(port):
 
 class OutputCapture:
     def __init__(self):
-        self.buffer = StringIO()
+        self.buffer = io.StringIO()
         self.old_stdout = sys.stdout
-
+        self.line_buffer = ""
+    
     def write(self, text):
+        # Write to original stdout and buffer
         self.buffer.write(text)
         self.old_stdout.write(text)
+        
+        # Add to line buffer and check for full lines
+        self.line_buffer += text
+        lines_to_process = []
+        
+        # If we have complete lines, process them
+        if '\n' in self.line_buffer:
+            parts = self.line_buffer.split('\n')
+            # The last part might be an incomplete line
+            self.line_buffer = parts[-1]
+            # All other parts are complete lines
+            lines_to_process = [part for part in parts[:-1] if part.strip()]
+        
+        # Queue text for immediate output
         output_queue.put(text)
-        # Split the text into lines and add to scan_results
-        for line in text.split('\n'):
+        
+        # Process complete lines for scan_results and found_keywords
+        for line in lines_to_process:
             if line.strip():
                 scan_results.append(line)
                 if '✅ Found' in line:
@@ -59,7 +78,13 @@ class OutputCapture:
     def flush(self):
         self.buffer.flush()
         self.old_stdout.flush()
-
+        # Process any remaining content in line buffer
+        if self.line_buffer.strip():
+            scan_results.append(self.line_buffer.strip())
+            if '✅ Found' in self.line_buffer:
+                found_keywords.append(self.line_buffer.strip())
+            self.line_buffer = ""
+    
     def getvalue(self):
         return self.buffer.getvalue()
 
@@ -74,6 +99,8 @@ def start_scan():
     data = request.json
     url = data.get('url', '').strip()
     keywords = data.get('keywords', [])
+    max_depth = data.get('max_depth', 3)  # Default to 3 if not provided
+    use_proxies = data.get('use_proxies', True)  # Default to True if not provided
     
     if not url:
         return jsonify({'error': 'Please enter a valid URL'}), 400
@@ -93,8 +120,11 @@ def start_scan():
             old_stdout = sys.stdout
             sys.stdout = OutputCapture()
             
+            # Run the crawler with the correct parameters
+            from crawler import main as crawler_main
+            
             # Run the crawler
-            run_crawler(url, keywords)
+            crawler_main(url, keywords, max_depth=max_depth, use_proxies=use_proxies)
             
             # Restore stdout
             sys.stdout = old_stdout
@@ -115,15 +145,20 @@ def start_scan():
 def get_scan_results():
     global is_scanning
     
-    # Mark scan as complete if we see the completion message
-    if any("[✅] Scan completed!" in line for line in scan_results):
+    # Mark scan as complete if we see the completion message or error messages about site access
+    if any("[✅] Scan completed!" in line for line in scan_results) or \
+       any("[⚠️] The website might be blocking crawlers" in line for line in scan_results):
         is_scanning = False
     
-    # Get any new output from the queue
+    # Get any new output from the queue (limited to prevent overwhelming the client)
     new_output = []
-    while not output_queue.empty():
+    max_queue_items = 50  # Limit items to process at once
+    count = 0
+    
+    while not output_queue.empty() and count < max_queue_items:
         try:
             new_output.append(output_queue.get_nowait())
+            count += 1
         except queue.Empty:
             break
     
@@ -131,7 +166,8 @@ def get_scan_results():
         'scan_results': scan_results,
         'found_keywords': found_keywords,
         'is_scanning': is_scanning,
-        'new_output': new_output
+        'new_output': new_output,
+        'queue_size': output_queue.qsize()  # Send queue size for debugging
     })
 
 @app.route('/download_results')

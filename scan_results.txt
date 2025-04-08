@@ -1,3 +1,5 @@
+import sys as sys_module
+
 Scan Results:
 [🔍] Starting deep crawl of https://ekhc.netlify.app
 [🔑] Keywords: khc
@@ -357,7 +359,7 @@ Scan Results:
 [🔎] Scanning: https://ekhc.netlify.app/tags/harshi/4
 ✅ Found 'khc' at: https://ekhc.netlify.app/posts/Crypto-6/
 [🔎] Scanning: https://ekhc.netlify.app/posts/27mar2025/
-✅ Found 'khc' at: https://ekhc.netlify.app/tags/khc/4
+[🔎] Scanning: https://ekhc.netlify.app/tags/khc/4
 [🔎] Scanning: https://ekhc.netlify.app/tags/khc/5
 ✅ Found 'khc' at: https://ekhc.netlify.app/posts/05dec2023
 [🔎] Scanning: https://ekhc.netlify.app/posts/RLCF/
