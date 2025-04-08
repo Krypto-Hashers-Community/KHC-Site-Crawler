@@ -205,8 +205,8 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
     if max_depth == 0:
         print(f"[📊] Mode: Fast Scan (No Depth - only scanning initial page)")
     elif max_depth == -1:
-        print(f"[📊] Mode: TURBO (No limits, max speed, no protections)")
-        MAX_DEPTH = 10  # Set a high depth limit, but not infinite
+        print(f"[📊] Mode: TURBO (No limits, maximum crawling of all pages)")
+        MAX_DEPTH = 999  # Effectively unlimited depth
     else:
         print(f"[📊] Max depth: {max_depth}")
     
@@ -231,7 +231,8 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
             print(f"[❌] Connection failed: {error_msg}")
             return []
 
-    if use_proxies and max_depth != -1:  # Don't use proxies in Turbo mode
+    # Only use proxies for normal mode with depth > 0
+    if use_proxies and max_depth > 0:
         print("[🔀] Using proxy rotation for this scan")
     
     try:
@@ -239,32 +240,48 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
         
         # Handle special TURBO mode
         if max_depth == -1:
-            print(f"[⚡] TURBO MODE ACTIVATED! Scanning at maximum speed...", flush=True)
+            print(f"[⚡] TURBO MODE ACTIVATED! Scanning at maximum speed with NO LIMITS...", flush=True)
+            print(f"[⚡] WARNING: This mode ignores all security measures and rate limits", flush=True)
+            print(f"[⚡] WARNING: Only use on your own websites or with explicit permission", flush=True)
+            
             # Direct request without retries or proxies for maximum speed
+            try:
+                response = requests.get(
+                    url, 
+                    headers={'User-Agent': USER_AGENTS[0]},
+                    timeout=3,  # Even shorter timeout
+                    verify=False  # Skip SSL verification
+                )
+                html = response.text
+                
+                # Continue with turbo mode - call a special function
+                turbo_crawl(url, keywords, html, base_netloc)
+                print(f"[✅] Turbo scan completed! Scanned {len(visited)} URLs")
+            except Exception as e:
+                print(f"[❌] Initial connection failed in Turbo mode: {str(e)[:100]}", flush=True)
+                print(f"[⚡] Attempting to continue anyway...", flush=True)
+                # Create a minimal set to start with
+                turbo_crawl(url, keywords, "", base_netloc)
+            
+            return []
+        
+        # Fast Scan mode (depth = 0)
+        elif max_depth == 0:
+            print(f"[🔍] Fast Scan Mode: Direct request to {url}", flush=True)
+            # Direct request without retries or proxies for faster speed
             response = requests.get(
                 url, 
-                headers={'User-Agent': USER_AGENTS[0]},  # Use first agent without randomization
-                timeout=5,  # Shorter timeout
+                headers=get_random_user_agent(),  # Still use random agent for basic protection
+                timeout=10,
                 verify=False  # Skip SSL verification
             )
+            
+            if response.status_code != 200:
+                print(f"[❌] Failed to access {url}. Status code: {response.status_code}")
+                return []
+                
             html = response.text
             
-            # Continue with turbo mode - call a special function
-            turbo_crawl(url, keywords, html, base_netloc)
-            print(f"[✅] Turbo scan completed! Scanned {len(visited)} URLs")
-            return []
-            
-        # Standard mode - Use the first implementation of request_with_retry
-        response = request_with_retry(url, 0, try_proxies=use_proxies)
-        if not response or response.status_code != 200:
-            print(f"[❌] Failed to access {url}. Status code: {response.status_code if response else 'N/A'}")
-            return []
-            
-        # Parse the HTML content
-        html = response.text
-        
-        # If max_depth is 0, only scan the initial page
-        if max_depth == 0:
             # Get the text from the HTML
             text = BeautifulSoup(html, "html.parser").get_text()
             
@@ -276,7 +293,17 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
             
             print(f"[✅] Fast scan completed! Scanned 1 URL")
             return []
+            
+        # Standard mode - Use the first implementation of request_with_retry
         else:
+            response = request_with_retry(url, 0, try_proxies=use_proxies)
+            if not response or response.status_code != 200:
+                print(f"[❌] Failed to access {url}. Status code: {response.status_code if response else 'N/A'}")
+                return []
+                
+            # Parse the HTML content
+            html = response.text
+            
             # Use the original search_keywords_in_page function that takes url, keywords, base_netloc as args
             search_keywords_in_page(url, keywords, base_netloc, depth=0)
         
@@ -310,11 +337,11 @@ def turbo_crawl(start_url, keywords, initial_html, base_netloc):
             queue.append(full_url)
     
     # Process queue with ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=10) as executor:  # Increase workers for speed
+    with ThreadPoolExecutor(max_workers=20) as executor:  # Increased workers even more
         futures = []
         
-        # Process each URL in the queue
-        while queue and len(visited) < 1000:  # Set a hard limit to prevent infinite crawling
+        # Process each URL in the queue - NO LIMITS
+        while queue:  # Removed the 1000 page limit
             url = queue.pop(0)
             
             # Skip if already visited
@@ -327,14 +354,14 @@ def turbo_crawl(start_url, keywords, initial_html, base_netloc):
             # Process in a separate thread
             futures.append(executor.submit(turbo_process_url, url, keywords, queue, base_netloc))
             
-            # Status update every 10 pages
-            if processed % 10 == 0:
+            # Status update every 20 pages
+            if processed % 20 == 0:
                 print(f"[⚡] Turbo processed {processed} pages, queue size: {len(queue)}", flush=True)
         
         # Wait for all futures to complete
         for future in futures:
             try:
-                future.result()
+                future.result(timeout=30)  # Added timeout to prevent hung threads
             except Exception as e:
                 # Just continue on error
                 pass
@@ -342,36 +369,58 @@ def turbo_crawl(start_url, keywords, initial_html, base_netloc):
     print(f"[⚡] Turbo crawl finished! Processed {processed} pages", flush=True)
 
 def turbo_process_url(url, keywords, queue, base_netloc):
-    """Process a single URL in turbo mode - no delays, no retries"""
+    """Process a single URL in turbo mode - no delays, no retries, raw speed"""
     try:
+        # Advanced headers to bypass common restrictions
+        headers = {
+            'User-Agent': USER_AGENTS[0],
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
+        
         # Super fast request with minimal options
         response = requests.get(
             url, 
-            timeout=5,
+            timeout=3,  # Reduced timeout to 3 seconds
             verify=False,
-            headers={'User-Agent': USER_AGENTS[0]}
+            headers=headers,
+            allow_redirects=True  # Follow redirects
         )
         
-        if response.status_code != 200:
-            return
+        # Print status updates less frequently to maximize speed
+        if random.random() < 0.1:  # Only 10% of requests show status
+            print(f"[⚡] Processing: {url}", flush=True)
+        
+        # Get any status code that returns content
+        content = response.text if response.status_code < 400 else ""
             
-        html = response.text
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text()
-        
-        # Find keywords
-        matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
-        for match in matches:
-            print(f"✅ Found '{match}' at: {url}", flush=True)
-        
-        # Extract more links to process
-        for tag in soup.find_all("a", href=True):
-            full_url = urljoin(url, tag["href"].split("#")[0])
-            if full_url not in visited and is_valid_link(full_url, base_netloc):
-                queue.append(full_url)
+        # Process even partial responses if we got any content
+        if content:
+            soup = BeautifulSoup(content, "html.parser")
+            text = soup.get_text()
+            
+            # Find keywords
+            matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
+            for match in matches:
+                print(f"✅ Found '{match}' at: {url}", flush=True)
+            
+            # Extract more links to process - all links, no filtering
+            for tag in soup.find_all("a", href=True):
+                full_url = urljoin(url, tag["href"].split("#")[0])
+                # Only check for basic URL validity and not being in visited set
+                if full_url not in visited and urlparse(full_url).netloc and full_url.startswith('http'):
+                    queue.append(full_url)
                 
-    except Exception as e:
-        # Silent fail - just continue
+    except requests.RequestException:
+        # Completely silent fail for requests errors
+        pass
+    except Exception:
+        # Completely silent for any other error
         pass
 
 def scan_link(url, keywords, depth, use_proxies=False):
