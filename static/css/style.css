@@ -180,6 +180,12 @@ body {
     font-style: italic;
 }
 
+/* Fast scan messages */
+.fast-scan-message {
+    color: #ffbb33;
+    font-weight: 600;
+}
+
 /* Animation for new lines */
 @keyframes fadeIn {
     from { opacity: 0; }

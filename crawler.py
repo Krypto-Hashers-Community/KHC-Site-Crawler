@@ -201,7 +201,11 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
 
     print(f"[🚀] Starting Deep Crawl of {url}")
     print(f"[📋] Keywords: {', '.join(keywords)}")
-    print(f"[📊] Max depth: {max_depth}")
+    
+    if max_depth == 0:
+        print(f"[📊] Mode: Fast Scan (No Depth - only scanning initial page)")
+    else:
+        print(f"[📊] Max depth: {max_depth}")
     
     # Ensure URL has http/https protocol
     if not url.startswith(('http://', 'https://')):
@@ -238,8 +242,22 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
         # Parse the HTML content
         html = response.text
         
-        # Use the original search_keywords_in_page function that takes url, keywords, base_netloc as args
-        search_keywords_in_page(url, keywords, base_netloc, depth=0)
+        # If max_depth is 0, only scan the initial page
+        if max_depth == 0:
+            # Get the text from the HTML
+            text = BeautifulSoup(html, "html.parser").get_text()
+            
+            # Find keywords directly
+            print(f"[🔎] Fast scanning initial page only: {url}", flush=True)
+            matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
+            for match in matches:
+                print(f"✅ Found '{match}' at: {url}", flush=True)
+            
+            print(f"[✅] Fast scan completed! Scanned 1 URL")
+            return []
+        else:
+            # Use the original search_keywords_in_page function that takes url, keywords, base_netloc as args
+            search_keywords_in_page(url, keywords, base_netloc, depth=0)
         
     except Exception as e:
         print(f"[❌] Error crawling {url}: {str(e)}")

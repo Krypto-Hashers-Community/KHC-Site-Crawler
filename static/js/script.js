@@ -43,11 +43,16 @@ function startScan() {
     document.getElementById('keywordsPage').style.display = 'none';
     document.getElementById('scanningPage').style.display = 'block';
 
-    // Update scan info
+    // Update scan info with custom messaging for No Depth option
+    let depthText = maxDepth;
+    if (maxDepth === '0') {
+        depthText = 'Fast Scan (initial page only)';
+    }
+    
     document.getElementById('scanInfo').innerHTML = `
         <strong>Website:</strong> ${currentUrl}<br>
         <strong>Keywords:</strong> ${currentKeywords}<br>
-        <strong>Crawl Depth:</strong> ${maxDepth}<br>
+        <strong>Crawl Depth:</strong> ${depthText}<br>
         <strong>Using Proxies:</strong> ${useProxies ? 'Yes' : 'No'}
     `;
     
@@ -120,6 +125,8 @@ function formatTerminalLine(line) {
         className += ' info-message';
     } else if (line.includes('[🔀]') || line.includes('[🔄]')) {
         className += ' system-message';
+    } else if (line.includes('Fast Scan') || line.includes('Fast scan')) {
+        className += ' fast-scan-message';
     }
     
     return `<div class="${className}">${line}</div>`;

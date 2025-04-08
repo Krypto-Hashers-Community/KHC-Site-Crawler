@@ -101,12 +101,13 @@
                         <div class="mb-3">
                             <label for="maxDepth" class="form-label">Maximum Crawl Depth</label>
                             <select class="form-select" id="maxDepth">
+                                <option value="0">No Depth (fastest)</option>
                                 <option value="2">Shallow (2)</option>
                                 <option value="3" selected>Normal (3)</option>
                                 <option value="4">Deep (4)</option>
                                 <option value="5">Very Deep (5)</option>
                             </select>
-                            <small class="text-muted">Higher depth values may take longer but find more results.</small>
+                            <small class="text-muted">Higher depth values may take longer but find more results. "No Depth" only scans the initial page for fastest results.</small>
                         </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="useProxies" checked>
