@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark-theme">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,6 +26,34 @@
         
         .card-title {
             letter-spacing: -0.5px;
+        }
+
+        /* Additional dark theme overrides */
+        .form-check-label {
+            color: #e0e0e0;
+        }
+        
+        .display-4 {
+            color: #4a90e2;
+        }
+        
+        /* Fix for alert text visibility */
+        .alert-info {
+            background-color: #2c3e50;
+            color: #ffffff;
+            font-weight: 500;
+            border-color: #4a90e2;
+            border-width: 2px;
+        }
+        
+        /* Make the example text stand out */
+        .alert-info strong {
+            color: #4a90e2;
+        }
+        
+        /* Fix small text visibility */
+        .text-muted {
+            color: #b0b0b0 !important;
         }
     </style>
 </head>
@@ -73,19 +101,21 @@
                         <div class="mb-3">
                             <label for="maxDepth" class="form-label">Maximum Crawl Depth</label>
                             <select class="form-select" id="maxDepth">
+                                <option value="0">No Depth (fastest)</option>
                                 <option value="2">Shallow (2)</option>
                                 <option value="3" selected>Normal (3)</option>
                                 <option value="4">Deep (4)</option>
                                 <option value="5">Very Deep (5)</option>
+                                <option value="-1" style="color: #ff3366; font-weight: bold;">⚡ TURBO - Scan EVERYTHING (No Limits)</option>
                             </select>
-                            <small class="text-muted">Higher depth values may take longer but find more results.</small>
+                            <small class="text-muted">"No Depth" only scans the initial page. Normal modes respect depth limits. <strong style="color: #ff3366;">TURBO</strong> scans all pages and sub-pages at maximum speed with no limits.</small>
                         </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="useProxies" checked>
                             <label class="form-check-label" for="useProxies">Use proxies (helps bypass site restrictions)</label>
                             <small class="form-text text-muted d-block">Slower but may work on sites that block crawlers.</small>
                         </div>
-                        <button class="btn btn-primary" onclick="startScan()">Start Scanning</button>
+                        <button id="startScanBtn" class="btn btn-primary" onclick="startScan()">Start Scanning</button>
                     </div>
                 </div>
             </div>

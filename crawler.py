@@ -174,18 +174,26 @@ def search_keywords_in_page(url, keywords, base_netloc, depth=0):
                 if len(child_links) == 0:
                     print(f"[⚠️] No links found on {url}", flush=True)
                 
-                with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                    futures = []
-                    for link in child_links:
-                        if is_valid_link(link, base_netloc):
+                # Create a list of valid links to process
+                valid_links = []
+                for link in child_links:
+                    # Make sure we haven't visited this URL and it's on the same domain
+                    if link not in visited and is_valid_link(link, base_netloc):
+                        valid_links.append(link)
+                
+                # Process each link recursively with ThreadPoolExecutor
+                if valid_links:
+                    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                        futures = []
+                        for link in valid_links:
                             futures.append(executor.submit(search_keywords_in_page, link, keywords, base_netloc, depth + 1))
-                    
-                    # Wait for all futures to complete
-                    for future in futures:
-                        try:
-                            future.result()
-                        except Exception as e:
-                            print(f"[❌] Thread error: {str(e)}", flush=True)
+                        
+                        # Wait for all futures to complete
+                        for future in futures:
+                            try:
+                                future.result()
+                            except Exception as e:
+                                print(f"[❌] Thread error: {str(e)}", flush=True)
         
         except Exception as e:
             print(f"[❌] Error processing {url}: {str(e)}", flush=True)
@@ -201,7 +209,14 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
 
     print(f"[🚀] Starting Deep Crawl of {url}")
     print(f"[📋] Keywords: {', '.join(keywords)}")
-    print(f"[📊] Max depth: {max_depth}")
+    
+    if max_depth == 0:
+        print(f"[📊] Mode: Fast Scan (No Depth - only scanning initial page)")
+    elif max_depth == -1:
+        print(f"[📊] Mode: TURBO (No limits, maximum crawling of all pages)")
+        MAX_DEPTH = 999  # Effectively unlimited depth
+    else:
+        print(f"[📊] Max depth: {max_depth}")
     
     # Ensure URL has http/https protocol
     if not url.startswith(('http://', 'https://')):
@@ -224,28 +239,119 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
             print(f"[❌] Connection failed: {error_msg}")
             return []
 
-    if use_proxies:
+    # Only use proxies for normal mode with depth > 0
+    if use_proxies and max_depth > 0:
         print("[🔀] Using proxy rotation for this scan")
     
     try:
         print(f"[🔍] Scanning: {url}")
-        # Use the first implementation of request_with_retry
-        response = request_with_retry(url, 0, try_proxies=use_proxies)
-        if not response or response.status_code != 200:
-            print(f"[❌] Failed to access {url}. Status code: {response.status_code if response else 'N/A'}")
-            return []
-            
-        # Parse the HTML content
-        html = response.text
         
-        # Use the original search_keywords_in_page function that takes url, keywords, base_netloc as args
-        search_keywords_in_page(url, keywords, base_netloc, depth=0)
+        # Handle special TURBO mode
+        if max_depth == -1:
+            # Get initial page content
+            response = request_with_retry(url, 0, try_proxies=False)
+            initial_html = response.text
+            # Start turbo crawl
+            turbo_crawl(url, keywords, initial_html, base_netloc)
+        else:
+            # Normal crawl
+            search_keywords_in_page(url, keywords, base_netloc, 0)
+        
+        print("[✅] Scan completed!")
         
     except Exception as e:
-        print(f"[❌] Error crawling {url}: {str(e)}")
+        print(f"[❌] Error during scan: {str(e)}")
+        raise
+
+def turbo_crawl(start_url, keywords, initial_html, base_netloc):
+    """Special function for turbo mode that aggressively crawls all pages"""
+    global visited
+    visited = set()
+    all_links_found = set()
     
-    print(f"[✅] Scan completed! Scanned {len(visited)} URLs")
-    return []
+    print(f"[⚡] TURBO MODE ACTIVATED! Scanning at maximum speed with NO LIMITS...")
+    print(f"[⚡] WARNING: This mode ignores all security measures and rate limits")
+    print(f"[⚡] WARNING: Only use on your own websites or with explicit permission")
+    
+    # Add initial URL to visited set
+    visited.add(start_url)
+    
+    # Process initial page
+    if initial_html:
+        print(f"[🔍] Processing initial page: {start_url}")
+        links = turbo_process_url_and_get_links(start_url, keywords, all_links_found, base_netloc)
+        all_links_found.update(links)
+    
+    # Process all found links
+    while all_links_found:
+        current_batch = list(all_links_found)[:30]  # Process in batches of 30
+        all_links_found = all_links_found - set(current_batch)
+        
+        with ThreadPoolExecutor(max_workers=30) as executor:
+            futures = []
+            for url in current_batch:
+                if url not in visited:
+                    futures.append(executor.submit(turbo_process_url_and_get_links, url, keywords, all_links_found, base_netloc))
+            
+            # Wait for all futures to complete
+            for future in futures:
+                try:
+                    new_links = future.result()
+                    all_links_found.update(new_links)
+                except Exception as e:
+                    print(f"[❌] Error processing URL in turbo mode: {str(e)}")
+    
+    print(f"[⚡] Turbo crawl finished! Scanned {len(visited)} URLs")
+
+def turbo_process_url_and_get_links(url, keywords, all_links_found, main_domain):
+    """Process a single URL in turbo mode and return new links found"""
+    try:
+        # Add to visited set
+        with lock:
+            if url in visited:
+                return set()
+            visited.add(url)
+        
+        print(f"[🔍] Processing: {url}")
+        
+        # Make request with minimal delay
+        response = requests.get(
+            url,
+            headers={'User-Agent': USER_AGENTS[0]},
+            timeout=5,
+            verify=False
+        )
+        
+        if response.status_code != 200:
+            print(f"[⚠️] Got status {response.status_code} for {url}")
+            return set()
+        
+        html = response.text
+        soup = BeautifulSoup(html, "html.parser")
+        
+        # Search for keywords
+        text = soup.get_text()
+        matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
+        for match in matches:
+            print(f"✅ Found '{match}' at: {url}")
+        
+        # Extract all links
+        new_links = set()
+        for tag in soup.find_all("a", href=True):
+            href = tag["href"].strip()
+            if href and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
+                full_url = urljoin(url, href.split("#")[0])
+                if full_url.startswith('http'):
+                    parsed_url = urlparse(full_url)
+                    if parsed_url.netloc and main_domain in parsed_url.netloc:
+                        if full_url not in visited and full_url not in all_links_found:
+                            new_links.add(full_url)
+        
+        return new_links
+        
+    except Exception as e:
+        print(f"[❌] Error processing {url}: {str(e)}")
+        return set()
 
 def scan_link(url, keywords, depth, use_proxies=False):
     if url in visited or depth <= 0:
