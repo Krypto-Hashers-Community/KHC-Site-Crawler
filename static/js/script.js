@@ -47,13 +47,15 @@ function startScan() {
     let depthText = maxDepth;
     if (maxDepth === '0') {
         depthText = 'Fast Scan (initial page only)';
+    } else if (maxDepth === '-1') {
+        depthText = 'TURBO MODE - Maximum Speed';
     }
     
     document.getElementById('scanInfo').innerHTML = `
         <strong>Website:</strong> ${currentUrl}<br>
         <strong>Keywords:</strong> ${currentKeywords}<br>
         <strong>Crawl Depth:</strong> ${depthText}<br>
-        <strong>Using Proxies:</strong> ${useProxies ? 'Yes' : 'No'}
+        <strong>Using Proxies:</strong> ${useProxies && maxDepth !== '-1' ? 'Yes' : 'No'} ${maxDepth === '-1' ? '(disabled in Turbo mode)' : ''}
     `;
     
     // Clear previous results
@@ -127,6 +129,8 @@ function formatTerminalLine(line) {
         className += ' system-message';
     } else if (line.includes('Fast Scan') || line.includes('Fast scan')) {
         className += ' fast-scan-message';
+    } else if (line.includes('[⚡]') || line.includes('TURBO')) {
+        className += ' turbo-message';
     }
     
     return `<div class="${className}">${line}</div>`;

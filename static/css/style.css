@@ -186,6 +186,13 @@ body {
     font-weight: 600;
 }
 
+/* Turbo mode messages */
+.turbo-message {
+    color: #ff3366;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
 /* Animation for new lines */
 @keyframes fadeIn {
     from { opacity: 0; }
