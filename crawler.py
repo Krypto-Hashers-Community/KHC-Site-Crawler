@@ -248,265 +248,110 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
         
         # Handle special TURBO mode
         if max_depth == -1:
-            print(f"[⚡] TURBO MODE ACTIVATED! Scanning at maximum speed with NO LIMITS...", flush=True)
-            print(f"[⚡] WARNING: This mode ignores all security measures and rate limits", flush=True)
-            print(f"[⚡] WARNING: Only use on your own websites or with explicit permission", flush=True)
-            
-            # Direct request without retries or proxies for maximum speed
-            try:
-                response = requests.get(
-                    url, 
-                    headers={'User-Agent': USER_AGENTS[0]},
-                    timeout=3,  # Even shorter timeout
-                    verify=False  # Skip SSL verification
-                )
-                html = response.text
-                
-                # Continue with turbo mode - call a special function
-                turbo_crawl(url, keywords, html, base_netloc)
-                print(f"[✅] Turbo scan completed! Scanned {len(visited)} URLs")
-            except Exception as e:
-                print(f"[❌] Initial connection failed in Turbo mode: {str(e)}", flush=True)
-                print(f"[⚡] Attempting to continue anyway...", flush=True)
-                # Create a minimal set to start with
-                turbo_crawl(url, keywords, "", base_netloc)
-            
-            return []
-        
-        # Fast Scan mode (depth = 0)
-        elif max_depth == 0:
-            print(f"[🔍] Fast Scan Mode: Direct request to {url}", flush=True)
-            # Direct request without retries or proxies for faster speed
-            response = requests.get(
-                url, 
-                headers=get_random_user_agent(),  # Still use random agent for basic protection
-                timeout=10,
-                verify=False  # Skip SSL verification
-            )
-            
-            if response.status_code != 200:
-                print(f"[❌] Failed to access {url}. Status code: {response.status_code}")
-                return []
-                
-            html = response.text
-            
-            # Get the text from the HTML
-            text = BeautifulSoup(html, "html.parser").get_text()
-            
-            # Find keywords directly
-            print(f"[🔎] Fast scanning initial page only: {url}", flush=True)
-            matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
-            for match in matches:
-                print(f"✅ Found '{match}' at: {url}", flush=True)
-            
-            print(f"[✅] Fast scan completed! Scanned 1 URL")
-            return []
-            
-        # Standard mode - Start crawling from the initial URL
+            # Get initial page content
+            response = request_with_retry(url, 0, try_proxies=False)
+            initial_html = response.text
+            # Start turbo crawl
+            turbo_crawl(url, keywords, initial_html, base_netloc)
         else:
-            # Clear the visited set again to make sure we start fresh
-            visited = set()
-            
-            # Start crawling from the initial URL
-            search_keywords_in_page(url, keywords, base_netloc, depth=0)
+            # Normal crawl
+            search_keywords_in_page(url, keywords, base_netloc, 0)
+        
+        print("[✅] Scan completed!")
         
     except Exception as e:
-        print(f"[❌] Error crawling {url}: {str(e)}")
-    
-    print(f"[✅] Scan completed! Scanned {len(visited)} URLs")
-    return []
+        print(f"[❌] Error during scan: {str(e)}")
+        raise
 
 def turbo_crawl(start_url, keywords, initial_html, base_netloc):
-    """Ultra-fast crawling without any delays or protection features"""
-    print(f"[⚡] Starting turbo crawl from {start_url}", flush=True)
-    print(f"[⚡] UNLIMITED mode: Will scan ALL pages on the site", flush=True)
-    
-    # Add the URL to visited (global set)
+    """Special function for turbo mode that aggressively crawls all pages"""
     global visited
+    visited = set()
+    all_links_found = set()
+    
+    print(f"[⚡] TURBO MODE ACTIVATED! Scanning at maximum speed with NO LIMITS...")
+    print(f"[⚡] WARNING: This mode ignores all security measures and rate limits")
+    print(f"[⚡] WARNING: Only use on your own websites or with explicit permission")
+    
+    # Add initial URL to visited set
     visited.add(start_url)
     
-    # Queue of URLs to process - using a set for the queue to track pending URLs
-    queue = set([start_url])
-    processed = 0
-    all_links_found = set()  # Track all links we've seen to avoid re-queueing
-    all_links_found.add(start_url)
+    # Process initial page
+    if initial_html:
+        print(f"[🔍] Processing initial page: {start_url}")
+        links = turbo_process_url_and_get_links(start_url, keywords, all_links_found, base_netloc)
+        all_links_found.update(links)
     
-    # Extract the domain for matching
-    parsed_start_url = urlparse(start_url)
-    domain = parsed_start_url.netloc
-    print(f"[⚡] Domain for scanning: {domain}", flush=True)
-    
-    # Try multiple methods to extract domain parts for flexible matching
-    domain_parts = domain.split('.')
-    if len(domain_parts) >= 2:
-        main_domain = '.'.join(domain_parts[-2:])  # e.g., example.com
-    else:
-        main_domain = domain
-    
-    print(f"[⚡] Will match URLs with domain: {main_domain}", flush=True)
-    
-    # Process the initial page
-    try:
-        if initial_html:
-            soup = BeautifulSoup(initial_html, "html.parser")
-            text = soup.get_text()
-            
-            # Find keywords
-            matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
-            for match in matches:
-                print(f"✅ Found '{match}' at: {start_url}", flush=True)
-            
-            # Extract links from initial page - get ALL links
-            for tag in soup.find_all("a", href=True):
-                href = tag["href"].strip()
-                if href and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
-                    full_url = urljoin(start_url, href.split("#")[0])
-                    # Basic URL validity check
-                    if full_url not in all_links_found and full_url.startswith('http'):
-                        parsed_url = urlparse(full_url)
-                        # Use simple domain matching - much more reliable
-                        if parsed_url.netloc and main_domain in parsed_url.netloc:
-                            queue.add(full_url)
-                            all_links_found.add(full_url)
-                            print(f"[⚡] Added to queue: {full_url}", flush=True)
-    except Exception as e:
-        # Just log and continue
-        print(f"[⚡] Error processing initial page: {str(e)}", flush=True)
-        print(f"[⚡] Will try to continue with direct website access", flush=True)
+    # Process all found links
+    while all_links_found:
+        current_batch = list(all_links_found)[:30]  # Process in batches of 30
+        all_links_found = all_links_found - set(current_batch)
         
-        # If initial HTML processing failed, try a direct request
-        try:
-            response = requests.get(
-                start_url, 
-                headers={'User-Agent': USER_AGENTS[0]},
-                timeout=5,
-                verify=False
-            )
+        with ThreadPoolExecutor(max_workers=30) as executor:
+            futures = []
+            for url in current_batch:
+                if url not in visited:
+                    futures.append(executor.submit(turbo_process_url_and_get_links, url, keywords, all_links_found, base_netloc))
             
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                
-                # Extract links from the page
-                for tag in soup.find_all("a", href=True):
-                    href = tag["href"].strip()
-                    if href and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
-                        full_url = urljoin(start_url, href.split("#")[0])
-                        if full_url not in all_links_found and full_url.startswith('http'):
-                            parsed_url = urlparse(full_url)
-                            if parsed_url.netloc and main_domain in parsed_url.netloc:
-                                queue.add(full_url)
-                                all_links_found.add(full_url)
-                                print(f"[⚡] Added to queue: {full_url}", flush=True)
-        except Exception as e:
-            print(f"[⚡] Direct request also failed: {str(e)}", flush=True)
-    
-    print(f"[⚡] Initial queue size: {len(queue)}", flush=True)
-    
-    # Process queue with ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=30) as executor:  # Increased to 30 workers
-        futures = []
-        
-        # Process each URL in the queue - ABSOLUTELY NO LIMITS
-        while queue:
-            # Get a batch of URLs to process
-            batch = list(queue)[:50]  # Process up to 50 URLs at once
-            queue = queue.difference(batch)  # Remove them from the queue
-            
-            print(f"[⚡] Processing batch of {len(batch)} URLs", flush=True)
-            
-            # Submit all URLs in the batch to be processed in parallel
-            batch_futures = []
-            for url in batch:
-                future = executor.submit(turbo_process_url_and_get_links, url, keywords, all_links_found, main_domain)
-                batch_futures.append(future)
-                futures.append(future)
-            
-            # Wait for batch to complete
-            for future in batch_futures:
+            # Wait for all futures to complete
+            for future in futures:
                 try:
-                    # Get new links from this batch
-                    new_links = future.result(timeout=15)
-                    
-                    # Add any new links to the queue
-                    for link in new_links:
-                        if link not in all_links_found:
-                            queue.add(link)
-                            all_links_found.add(link)
-                            visited.add(link)  # Add to global visited set
+                    new_links = future.result()
+                    all_links_found.update(new_links)
                 except Exception as e:
-                    # Log exception but continue
-                    print(f"[⚡] Error in future: {str(e)}", flush=True)
-            
-            processed += len(batch)
-            
-            # Status update
-            print(f"[⚡] Turbo processed {processed} pages, {len(queue)} remaining in queue", flush=True)
-        
-    print(f"[⚡] Turbo crawl finished! Processed {processed} pages", flush=True)
+                    print(f"[❌] Error processing URL in turbo mode: {str(e)}")
+    
+    print(f"[⚡] Turbo crawl finished! Scanned {len(visited)} URLs")
 
 def turbo_process_url_and_get_links(url, keywords, all_links_found, main_domain):
-    """Process a URL in turbo mode and return any new links found"""
-    new_links = set()
+    """Process a single URL in turbo mode and return new links found"""
     try:
-        # Advanced headers to bypass common restrictions
-        headers = {
-            'User-Agent': USER_AGENTS[0],
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Pragma': 'no-cache',
-            'Cache-Control': 'no-cache',
-        }
+        # Add to visited set
+        with lock:
+            if url in visited:
+                return set()
+            visited.add(url)
         
-        # Super fast request with minimal options
+        print(f"[🔍] Processing: {url}")
+        
+        # Make request with minimal delay
         response = requests.get(
-            url, 
-            timeout=3,  # Reduced timeout to 3 seconds
-            verify=False,
-            headers=headers,
-            allow_redirects=True  # Follow redirects
+            url,
+            headers={'User-Agent': USER_AGENTS[0]},
+            timeout=5,
+            verify=False
         )
         
-        # Print status updates less frequently to maximize speed
-        if random.random() < 0.1:  # Only 10% of requests show status
-            print(f"[⚡] Processing: {url}", flush=True)
+        if response.status_code != 200:
+            print(f"[⚠️] Got status {response.status_code} for {url}")
+            return set()
         
-        # Get any status code that returns content
-        content = response.text if response.status_code < 400 else ""
-            
-        # Process even partial responses if we got any content
-        if content:
-            soup = BeautifulSoup(content, "html.parser")
-            text = soup.get_text()
-            
-            # Find keywords
-            matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
-            for match in matches:
-                print(f"✅ Found '{match}' at: {url}", flush=True)
-            
-            # Extract ALL links from the page
-            for tag in soup.find_all("a", href=True):
-                href = tag["href"].strip()
-                if href and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
-                    full_url = urljoin(url, href.split("#")[0])
-                    # Only check for basic URL validity and not being in all_links_found
-                    if full_url not in all_links_found and full_url.startswith('http'):
-                        parsed_url = urlparse(full_url)
-                        # Make sure it's on the same domain or subdomain - simpler check
-                        if parsed_url.netloc and main_domain in parsed_url.netloc:
+        html = response.text
+        soup = BeautifulSoup(html, "html.parser")
+        
+        # Search for keywords
+        text = soup.get_text()
+        matches = [kw for kw in keywords if re.search(rf"\b{re.escape(kw)}\b", text, re.IGNORECASE)]
+        for match in matches:
+            print(f"✅ Found '{match}' at: {url}")
+        
+        # Extract all links
+        new_links = set()
+        for tag in soup.find_all("a", href=True):
+            href = tag["href"].strip()
+            if href and not href.startswith(('javascript:', 'mailto:', 'tel:', '#')):
+                full_url = urljoin(url, href.split("#")[0])
+                if full_url.startswith('http'):
+                    parsed_url = urlparse(full_url)
+                    if parsed_url.netloc and main_domain in parsed_url.netloc:
+                        if full_url not in visited and full_url not in all_links_found:
                             new_links.add(full_url)
-                
-    except requests.RequestException:
-        # Silent fail for requests errors
-        pass
-    except Exception as e:
-        # Log the error but continue
-        if random.random() < 0.1:  # Only log 10% of errors to reduce output spam
-            print(f"[⚡] Error processing {url}: {str(e)[:50]}...", flush=True)
         
-    return new_links
+        return new_links
+        
+    except Exception as e:
+        print(f"[❌] Error processing {url}: {str(e)}")
+        return set()
 
 def scan_link(url, keywords, depth, use_proxies=False):
     if url in visited or depth <= 0:

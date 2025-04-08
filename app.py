@@ -49,12 +49,8 @@ class OutputCapture:
         self.line_buffer = ""
     
     def write(self, text):
-        # Write to original stdout and buffer
-        self.buffer.write(text)
+        # Write to original stdout
         self.old_stdout.write(text)
-        
-        # Always queue the raw text for immediate output
-        output_queue.put(text)
         
         # Add to line buffer and check for full lines
         self.line_buffer += text
@@ -71,18 +67,23 @@ class OutputCapture:
         # Process complete lines for scan_results and found_keywords
         for line in lines_to_process:
             if line.strip():
-                scan_results.append(line)
-                if '✅ Found' in line:
-                    found_keywords.append(line)
+                # Only add unique lines to scan_results
+                if line not in scan_results:
+                    scan_results.append(line)
+                    if '✅ Found' in line:
+                        found_keywords.append(line)
+                    # Queue the line for immediate output
+                    output_queue.put(line)
 
     def flush(self):
-        self.buffer.flush()
         self.old_stdout.flush()
         # Process any remaining content in line buffer
         if self.line_buffer.strip():
-            scan_results.append(self.line_buffer.strip())
-            if '✅ Found' in self.line_buffer:
-                found_keywords.append(self.line_buffer.strip())
+            if self.line_buffer not in scan_results:
+                scan_results.append(self.line_buffer.strip())
+                if '✅ Found' in self.line_buffer:
+                    found_keywords.append(self.line_buffer.strip())
+                output_queue.put(self.line_buffer.strip())
             self.line_buffer = ""
     
     def getvalue(self):
@@ -96,6 +97,10 @@ def index():
 def start_scan():
     global scan_results, found_keywords, is_scanning
     
+    # If already scanning, return error
+    if is_scanning:
+        return jsonify({'error': 'A scan is already in progress'}), 400
+    
     data = request.json
     url = data.get('url', '').strip()
     keywords = data.get('keywords', [])
@@ -108,7 +113,7 @@ def start_scan():
     if not keywords:
         return jsonify({'error': 'Please enter keywords'}), 400
     
-    # Reset previous results
+    # Reset previous results and state
     scan_results = []
     found_keywords = []
     is_scanning = True
@@ -122,16 +127,15 @@ def start_scan():
             
             # Run the crawler with the correct parameters
             from crawler import main as crawler_main
-            
-            # Run the crawler
             crawler_main(url, keywords, max_depth=max_depth, use_proxies=use_proxies)
             
-            # Restore stdout
-            sys.stdout = old_stdout
-            is_scanning = False
-            
         except Exception as e:
-            output_queue.put(f"Error: {str(e)}")
+            error_msg = f"Error: {str(e)}"
+            print(error_msg)
+            output_queue.put(error_msg)
+        finally:
+            # Always restore stdout and update scanning state
+            sys.stdout = old_stdout
             is_scanning = False
     
     # Start the crawler thread
@@ -145,35 +149,29 @@ def start_scan():
 def get_scan_results():
     global is_scanning
     
-    # Mark scan as complete if we see the completion message or error messages about site access
+    # Get any new output from the queue
+    new_output = []
+    try:
+        while not output_queue.empty():
+            item = output_queue.get_nowait()
+            if item and item.strip():  # Only add non-empty items
+                new_output.append(item)
+    except queue.Empty:
+        pass
+    
+    # Mark scan as complete if we see the completion message
     if any("[✅] Scan completed!" in line for line in scan_results) or \
-       any("[⚡] Turbo crawl finished!" in line for line in scan_results) or \
-       any("[⚠️] The website might be blocking crawlers" in line for line in scan_results):
+       any("[⚡] Turbo crawl finished!" in line for line in scan_results):
         is_scanning = False
     
-    # Get any new output from the queue (increased limit for Turbo mode)
-    new_output = []
-    max_queue_items = 200  # Increased from 50 to handle more output
-    count = 0
-    
-    while not output_queue.empty() and count < max_queue_items:
-        try:
-            item = output_queue.get_nowait()
-            new_output.append(item)
-            count += 1
-        except queue.Empty:
-            break
-    
     # Update found_keywords by scanning scan_results again
-    # This ensures we don't miss any findings, especially in Turbo mode
     updated_found_keywords = [line for line in scan_results if '✅ Found' in line]
     
     return jsonify({
         'scan_results': scan_results,
         'found_keywords': updated_found_keywords,
         'is_scanning': is_scanning,
-        'new_output': new_output,
-        'queue_size': output_queue.qsize()  # Send queue size for debugging
+        'new_output': new_output
     })
 
 @app.route('/download_results')

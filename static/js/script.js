@@ -28,52 +28,37 @@ function showKeywordsPage() {
 }
 
 function startScan() {
-    currentKeywords = document.getElementById('keywords').value.trim();
-    if (!currentKeywords) {
+    // Get input values
+    const url = document.getElementById('url').value.trim();
+    const keywords = document.getElementById('keywords').value.trim();
+    const maxDepth = document.getElementById('maxDepth').value;
+    const useProxies = document.getElementById('useProxies').checked;
+    
+    // Validate inputs
+    if (!url) {
+        alert('Please enter a valid URL');
+        return;
+    }
+    if (!keywords) {
         alert('Please enter keywords');
         return;
     }
-
-    // Get max depth value
-    const maxDepth = document.getElementById('maxDepth').value;
     
-    // Get proxy option
-    const useProxies = document.getElementById('useProxies').checked;
-    
+    // Show scanning page
     document.getElementById('keywordsPage').style.display = 'none';
     document.getElementById('scanningPage').style.display = 'block';
-
-    // Update scan info with custom messaging for No Depth option
-    let depthText = maxDepth;
-    if (maxDepth === '0') {
-        depthText = 'Fast Scan (initial page only)';
-    } else if (maxDepth === '-1') {
-        depthText = '⚡ TURBO MODE - Scanning EVERYTHING';
-    }
-    
-    // Determine if proxies are used (not used in Fast Scan or Turbo mode)
-    const proxiesUsed = useProxies && maxDepth > 0;
-    const proxiesDisabledMessage = maxDepth === '0' ? '(disabled in Fast Scan mode)' : 
-                                  maxDepth === '-1' ? '(disabled in Turbo mode)' : '';
-    
-    document.getElementById('scanInfo').innerHTML = `
-        <strong>Website:</strong> ${currentUrl}<br>
-        <strong>Keywords:</strong> ${currentKeywords}<br>
-        <strong>Crawl Depth:</strong> ${depthText}<br>
-        <strong>Using Proxies:</strong> ${proxiesUsed ? 'Yes' : 'No'} ${proxiesDisabledMessage}
-    `;
     
     // Clear previous results
     document.getElementById('terminalOutput').innerHTML = '';
     document.getElementById('foundKeywords').innerHTML = '';
-    document.getElementById('keywordsCounter').textContent = '0';
-    foundUrls = [];
-    document.getElementById('openAllUrlsBtn').style.display = 'none';
     
     // Set initial status
     const statusButton = document.getElementById('statusButton');
     statusButton.className = 'status-button status-processing';
     statusButton.textContent = 'Processing';
+    
+    // Disable start button
+    document.getElementById('startScanBtn').disabled = true;
     
     // Start the scan
     isScanning = true;
@@ -83,8 +68,8 @@ function startScan() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            url: currentUrl,
-            keywords: currentKeywords.split(',').map(k => k.trim()),
+            url: url,
+            keywords: keywords.split(',').map(k => k.trim()),
             max_depth: parseInt(maxDepth),
             use_proxies: useProxies
         })
@@ -94,14 +79,20 @@ function startScan() {
         if (data.error) {
             alert(data.error);
             isScanning = false;
+            document.getElementById('startScanBtn').disabled = false;
+            statusButton.className = 'status-button status-error';
+            statusButton.textContent = 'Error';
             return;
         }
         // Start polling for results
-        pollResults();
+        updateResults();
     })
     .catch(error => {
         console.error('Error:', error);
         isScanning = false;
+        document.getElementById('startScanBtn').disabled = false;
+        statusButton.className = 'status-button status-error';
+        statusButton.textContent = 'Error';
     });
 }
 
@@ -141,86 +132,112 @@ function formatTerminalLine(line) {
     return `<div class="${className}">${line}</div>`;
 }
 
-function pollResults() {
+function updateResults() {
     if (!isScanning) return;
     
     fetch('/get_scan_results')
         .then(response => response.json())
         .then(data => {
-            // Update terminal output incrementally
+            // Update terminal output
             const terminalOutput = document.getElementById('terminalOutput');
-            
-            // Clear and rebuild if there's a significant change
-            if (Math.abs(data.scan_results.length - terminalOutput.childElementCount) > 20) {
-                terminalOutput.innerHTML = data.scan_results
-                    .map(line => formatTerminalLine(line))
-                    .join('');
-                
-                // Always scroll to bottom on big updates
+            if (data.new_output && data.new_output.length > 0) {
+                data.new_output.forEach(line => {
+                    if (line.trim()) {  // Only add non-empty lines
+                        const lineDiv = document.createElement('div');
+                        lineDiv.className = 'terminal-line';
+                        lineDiv.textContent = line;
+                        terminalOutput.appendChild(lineDiv);
+                    }
+                });
+                // Always scroll to bottom after adding new content
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;
             }
-            // Otherwise just append new output
-            else if (data.new_output && data.new_output.length > 0) {
-                let newContent = '';
-                data.new_output.forEach(text => {
-                    // Split text into lines and add each line
-                    text.split('\n').forEach(line => {
-                        if (line.trim()) {
-                            newContent += formatTerminalLine(line);
+            
+            // Update found keywords
+            const keywordsDiv = document.getElementById('foundKeywords');
+            if (data.found_keywords && data.found_keywords.length > 0) {
+                keywordsDiv.innerHTML = '';  // Clear existing content
+                const uniqueUrls = new Set();  // Track unique URLs
+                
+                data.found_keywords.forEach(keyword => {
+                    if (keyword.trim()) {  // Only add non-empty keywords
+                        const keywordDiv = document.createElement('div');
+                        keywordDiv.className = 'found-keyword';
+                        
+                        // Extract URL from the keyword line
+                        const urlMatch = keyword.match(/at: (https?:\/\/[^\s]+)/);
+                        if (urlMatch) {
+                            const url = urlMatch[1];
+                            uniqueUrls.add(url);  // Add to unique URLs set
+                            
+                            // Create clickable link
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.target = '_blank';
+                            link.textContent = keyword;
+                            link.style.color = '#4a90e2';
+                            link.style.textDecoration = 'none';
+                            link.style.cursor = 'pointer';
+                            
+                            // Add hover effect
+                            link.addEventListener('mouseover', () => {
+                                link.style.textDecoration = 'underline';
+                            });
+                            link.addEventListener('mouseout', () => {
+                                link.style.textDecoration = 'none';
+                            });
+                            
+                            keywordDiv.appendChild(link);
+                        } else {
+                            keywordDiv.textContent = keyword;
                         }
-                    });
+                        
+                        keywordsDiv.appendChild(keywordDiv);
+                    }
                 });
                 
-                // Append the new content
-                if (newContent) {
-                    // Preserve scroll position
-                    const wasAtBottom = terminalOutput.scrollTop + terminalOutput.clientHeight >= terminalOutput.scrollHeight - 30;
-                    
-                    // Append content
-                    terminalOutput.innerHTML += newContent;
-                    
-                    // Auto-scroll if we were at the bottom
-                    if (wasAtBottom) {
-                        terminalOutput.scrollTop = terminalOutput.scrollHeight;
-                    }
+                // Update keyword counter
+                const keywordsCounter = document.getElementById('keywordsCounter');
+                keywordsCounter.textContent = uniqueUrls.size;
+                
+                // Show/hide "Open All URLs" button based on found URLs
+                const openAllUrlsBtn = document.getElementById('openAllUrlsBtn');
+                if (uniqueUrls.size > 0) {
+                    openAllUrlsBtn.style.display = 'block';
+                    // Update the button's onclick handler with current URLs
+                    openAllUrlsBtn.onclick = () => {
+                        uniqueUrls.forEach(url => window.open(url, '_blank'));
+                    };
+                } else {
+                    openAllUrlsBtn.style.display = 'none';
                 }
             }
-
-            // Update found keywords
-            if (data.found_keywords && data.found_keywords.length > 0) {
-                updateFoundKeywords(data.found_keywords);
-            }
-
-            // Update status button
+            
+            // Update scanning status
+            isScanning = data.is_scanning;
             const statusButton = document.getElementById('statusButton');
             
-            // Check for completion or errors
-            if (!data.is_scanning || 
-                data.scan_results.some(line => line.includes("[✅] Scan completed!")) ||
-                data.scan_results.some(line => line.includes("[⚡] Turbo crawl finished!"))) {
-                if (data.scan_results.some(line => line.includes("Error"))) {
-                    statusButton.className = 'status-button status-error';
-                    statusButton.textContent = 'Error';
-                } else {
-                    statusButton.className = 'status-button status-complete';
-                    statusButton.textContent = 'Completed';
-                }
-                isScanning = false;
+            if (!isScanning) {
+                document.getElementById('startScanBtn').disabled = false;
+                statusButton.className = 'status-button status-complete';
+                statusButton.textContent = 'Completed';
             } else {
                 statusButton.className = 'status-button status-processing';
                 statusButton.textContent = 'Processing';
-                
-                // Continue polling - use faster rate for Turbo mode
-                const isTurboMode = data.scan_results.some(line => line.includes("TURBO MODE"));
-                setTimeout(pollResults, isTurboMode ? 200 : 500); // Poll more frequently in Turbo mode
+            }
+            
+            // Continue polling if still scanning
+            if (isScanning) {
+                // Use a shorter interval for more responsive updates
+                setTimeout(updateResults, 500);
             }
         })
         .catch(error => {
-            console.error('Error polling results:', error);
-            const statusButton = document.getElementById('statusButton');
-            statusButton.className = 'status-button status-error';
-            statusButton.textContent = 'Error';
-            isScanning = false;
+            console.error('Error fetching results:', error);
+            // Continue polling even if there's an error, but with a longer interval
+            if (isScanning) {
+                setTimeout(updateResults, 1000);
+            }
         });
 }
 
