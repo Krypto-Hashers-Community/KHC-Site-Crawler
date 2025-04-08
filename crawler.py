@@ -174,18 +174,26 @@ def search_keywords_in_page(url, keywords, base_netloc, depth=0):
                 if len(child_links) == 0:
                     print(f"[⚠️] No links found on {url}", flush=True)
                 
-                with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                    futures = []
-                    for link in child_links:
-                        if is_valid_link(link, base_netloc):
+                # Create a list of valid links to process
+                valid_links = []
+                for link in child_links:
+                    # Make sure we haven't visited this URL and it's on the same domain
+                    if link not in visited and is_valid_link(link, base_netloc):
+                        valid_links.append(link)
+                
+                # Process each link recursively with ThreadPoolExecutor
+                if valid_links:
+                    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                        futures = []
+                        for link in valid_links:
                             futures.append(executor.submit(search_keywords_in_page, link, keywords, base_netloc, depth + 1))
-                    
-                    # Wait for all futures to complete
-                    for future in futures:
-                        try:
-                            future.result()
-                        except Exception as e:
-                            print(f"[❌] Thread error: {str(e)}", flush=True)
+                        
+                        # Wait for all futures to complete
+                        for future in futures:
+                            try:
+                                future.result()
+                            except Exception as e:
+                                print(f"[❌] Thread error: {str(e)}", flush=True)
         
         except Exception as e:
             print(f"[❌] Error processing {url}: {str(e)}", flush=True)
@@ -294,17 +302,12 @@ def main(url, keywords, max_depth=2, use_proxies=False, connect_test_only=False)
             print(f"[✅] Fast scan completed! Scanned 1 URL")
             return []
             
-        # Standard mode - Use the first implementation of request_with_retry
+        # Standard mode - Start crawling from the initial URL
         else:
-            response = request_with_retry(url, 0, try_proxies=use_proxies)
-            if not response or response.status_code != 200:
-                print(f"[❌] Failed to access {url}. Status code: {response.status_code if response else 'N/A'}")
-                return []
-                
-            # Parse the HTML content
-            html = response.text
+            # Clear the visited set again to make sure we start fresh
+            visited = set()
             
-            # Use the original search_keywords_in_page function that takes url, keywords, base_netloc as args
+            # Start crawling from the initial URL
             search_keywords_in_page(url, keywords, base_netloc, depth=0)
         
     except Exception as e:
