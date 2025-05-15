@@ -6,6 +6,8 @@ import threading
 import queue
 from queue import Queue
 import io
+import json
+import csv  # Added for CSV export support
 from flask import Flask, render_template, request, jsonify, send_file
 
 # Import the crawler module
@@ -185,6 +187,126 @@ def download_results():
         download_name='scan_results.txt'
     )
 
+@app.route('/download_results_csv')
+def download_results_csv():
+    """
+    Export scan results in CSV format.
+    Enhancement by: [Yassine Erradouani]
+    
+    This route provides a user-friendly CSV export with parsed data from
+    scan results for easier analysis in spreadsheet applications.
+    """
+    # Create a CSV file with the results
+    output = io.StringIO()
+    csv_writer = csv.writer(output)
+    
+    # Write header row
+    csv_writer.writerow(['Result Type', 'Message', 'URL', 'Keywords Found'])
+    
+    # Process each result line and extract relevant data
+    for line in scan_results:
+        result_type = ""
+        url = ""
+        keywords = ""
+        
+        # Categorize the result type
+        if '✅ Found' in line:
+            result_type = "Found Keyword"
+            # Extract URL and keyword from lines like "✅ Found 'keyword' at: URL"
+            match = line.split("'")
+            if len(match) >= 3:
+                keywords = match[1]
+                url_part = line.split("at: ")
+                if len(url_part) > 1:
+                    url = url_part[1].strip()
+        elif '[🔍]' in line or '[🔎]' in line:
+            result_type = "Scanning"
+            # Try to extract URL
+            url_part = line.split("Scanning ")
+            if len(url_part) > 1:
+                url = url_part[1].strip()
+        elif '[❌]' in line:
+            result_type = "Error"
+        elif '[⚠️]' in line:
+            result_type = "Warning"
+        else:
+            result_type = "Info"
+            
+        # Write the processed data to CSV
+        csv_writer.writerow([result_type, line, url, keywords])
+    
+    # Return the CSV file
+    output.seek(0)
+    return send_file(
+        io.BytesIO(output.getvalue().encode()),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name='scan_results.csv'
+    )
+
+@app.route('/download_results_json')
+def download_results_json():
+    """
+    Export scan results in JSON format.
+    Enhancement by: [Yassine Erradouani]
+    
+    This route provides structured JSON data from scan results for
+    integration with other tools or programmatic analysis.
+    """
+    # Create structured JSON data from the results
+    json_data = {
+        'scan_summary': {
+            'total_results': len(scan_results),
+            'keywords_found': len(found_keywords),
+            'timestamp': '',  # Could add timestamp if available
+        },
+        'results': []
+    }
+    
+    # Process each result line
+    for line in scan_results:
+        result_entry = {
+            'raw_message': line,
+            'type': '',
+            'url': '',
+            'keyword': ''
+        }
+        
+        # Categorize and extract data
+        if '✅ Found' in line:
+            result_entry['type'] = 'keyword_found'
+            # Extract URL and keyword
+            match = line.split("'")
+            if len(match) >= 3:
+                result_entry['keyword'] = match[1]
+                url_part = line.split("at: ")
+                if len(url_part) > 1:
+                    result_entry['url'] = url_part[1].strip()
+        elif '[🔍]' in line or '[🔎]' in line:
+            result_entry['type'] = 'scanning'
+            # Try to extract URL
+            url_part = line.split("Scanning ")
+            if len(url_part) > 1:
+                result_entry['url'] = url_part[1].strip()
+        elif '[❌]' in line:
+            result_entry['type'] = 'error'
+        elif '[⚠️]' in line:
+            result_entry['type'] = 'warning'
+        elif '[✓]' in line or '[✅]' in line:
+            result_entry['type'] = 'success'
+        else:
+            result_entry['type'] = 'info'
+            
+        json_data['results'].append(result_entry)
+    
+    # Return the JSON file
+    return send_file(
+        io.BytesIO(json.dumps(json_data, indent=2).encode()),
+        mimetype='application/json',
+        as_attachment=True,
+        download_name='scan_results.json'
+    )
+
 if __name__ == '__main__':
     # Try to use port 5000 first
     try:
@@ -194,4 +316,4 @@ if __name__ == '__main__':
         port = find_available_port(5001, 6000)
     
     print(f"Starting server on port {port}")
-    app.run(debug=True, port=port) 
+    app.run(debug=True, port=port)

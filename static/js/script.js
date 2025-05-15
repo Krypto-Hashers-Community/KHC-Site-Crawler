@@ -302,7 +302,20 @@ function openAllFoundUrls() {
 }
 
 function downloadResults() {
-    window.location.href = '/download_results';
+    // Get the selected export format
+    const format = document.getElementById('exportFormat').value;
+    
+    // Choose the appropriate endpoint based on the format
+    let endpoint = '/download_results';
+    
+    if (format === 'csv') {
+        endpoint = '/download_results_csv';
+    } else if (format === 'json') {
+        endpoint = '/download_results_json';
+    }
+    
+    // Navigate to the download URL
+    window.location.href = endpoint;
 }
 
 // Add a function to show a notice about TURBO mode

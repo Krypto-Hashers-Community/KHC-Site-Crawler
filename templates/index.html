@@ -151,7 +151,15 @@
                     </div>
                 </div>
                 <div class="text-center mt-4">
-                    <button class="btn btn-success" onclick="downloadResults()">Download Results</button>
+                    <div class="export-controls">
+                        <label for="exportFormat" class="me-2">Export Format:</label>
+                        <select id="exportFormat" class="form-select-sm d-inline-block" style="width: auto;">
+                            <option value="txt">Text (.txt)</option>
+                            <option value="csv">CSV (.csv)</option>
+                            <option value="json">JSON (.json)</option>
+                        </select>
+                        <button class="btn btn-success ms-2" onclick="downloadResults()">Download Results</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -160,4 +168,4 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
-</html> 
+</html>
